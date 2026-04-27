@@ -1,38 +1,30 @@
-const express = require("express"); //importa o módulo express neste arquivo
-const app = express(); //iniciando o express
+const express = require("express");
+  const app = express();
 
-//criando a rota inicial
-app.get("/", function(req, res) {
-    res.send("<h1>Bem vindo ao meu site!</h1>");
-})
+  app.get("/", function(req, res) {
+      res.send("<h1>Bem vindo ao meu site!</h1>");
+  });
 
-//rota do cadastro de produtos
-app.get("/produtos", function(req, res) {
-    res.send("<h1>Lista de Produtos!</h1>");
-})
+  app.get("/produtos", function(req, res) {
+      res.send("<h1>Lista de Produtos!</h1>");
+  });
 
-//rota com parametro 
-app.get("/consulta/:parametro", function(req, res) {
-    //req --> dados enviados pelo cliente
-    //res --> resposta enviada pelo servidor de volta ao cliente
-    res.send("retorno consulta:" + req.params.parametro);
-})
+  // CORRIGIDO: resposta agora em HTML
+  app.get("/consulta/:parametro", function(req, res) {
+      res.send("<h1>Resultado da consulta: " + req.params.parametro + "</h1>");
+  });
 
+  // CORRIGIDO: {: } não é sintaxe válida no Express — use :nome?
+  app.get("/cadastro/:nome?", function(req, res) {
+      var nome = req.params.nome;
+      if (nome) {
+          res.send("<h1>Produto " + nome + " criado!</h1>");
+      } else {
+          res.send("<h1>Produto criado!</h1>");
+      }
+  });
 
-//rota com parametro opcional
-app.get("/cadastro/{:nome}", function(req, res) {
-    //req --> dados enviados pelo cliente
-    var nome = req.params.nome;
-    if (nome) {
-        res.send("<h1>produto " + nome + " criado!</h1>");
-    } else {
-        res.send("produto criado!");
-    }
-
-})
-
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-});
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+      console.log(`Servidor rodando na porta ${PORT}`);
+  });
