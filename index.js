@@ -14,8 +14,8 @@ const express = require("express");
       res.send("<h1>Resultado da consulta: " + req.params.parametro + "</h1>");
   });
 
-  // CORRIGIDO: {: } não é sintaxe válida no Express — use :nome?
-  app.get("/cadastro/:nome?", function(req, res) {
+  // Em versões novas do path-to-regexp, parâmetro opcional usa chaves
+  app.get("/cadastro{/:nome}", function(req, res) {
       var nome = req.params.nome;
       if (nome) {
           res.send("<h1>Produto " + nome + " criado!</h1>");
