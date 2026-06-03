@@ -1,120 +1,141 @@
-//import express from 'express';
+require('dotenv').config({ override: true });
+
 const express = require('express');
-
-//import createClient from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
-//import {createClient} from '@supabase/supabase-js'
-const supabaseClient = require('@supabase/supabase-js');
-
-//import morgan from 'morgan';
+const { createClient } = require('@supabase/supabase-js');
 const morgan = require('morgan');
-
-//import bodyParser from "body-parser";
-const bodyParser = require('body-parser');
-
-//import { createClient } from "https://cdn.skypack.dev/@supabase/supabase-js";
+const cors = require('cors');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-const cors = require("cors");
-const corsOptions = {
-    origin: '*',
-    credentials: true, //access-control-allow-credentials:true
-    optionSuccessStatus: 200,
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('Defina SUPABASE_URL no arquivo .env (veja .env.example)');
+  process.exit(1);
 }
 
-app.use(cors(corsOptions)) // Use this after the variable declaration
+if (!SUPABASE_KEY) {
+  console.error('Defina SUPABASE_KEY no arquivo .env (veja .env.example)');
+  process.exit(1);
+}
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// using morgan for logs
+app.use(
+  cors({
+    origin: '*',
+    credentials: true,
+    optionsSuccessStatus: 200,
+  })
+);
 app.use(morgan('combined'));
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-
-const supabase =
-    supabaseClient.createClient('https://uhkrwnvzdkqcfayxqxgr.supabase.co/rest/v1/',
-        'sb_publishable_9tg2fp687ZVYkNVYjZS7SA__-8TxegA')
-
-
-app.get('/products', async(req, res) => {
-    const { data, error } = await supabase
-        .from('products')
-        .select()
-    res.send(data);
-    console.log(`lists all products${data}`);
-});
-
-app.get('/products/:id', async(req, res) => {
-    console.log("id = " + req.params.id);
-    const { data, error } = await supabase
-        .from('products')
-        .select()
-        .eq('id', req.params.id)
-    res.send(data);
-
-    console.log("retorno " + data);
-});
-
-app.post('/products', async(req, res) => {
-    const { error } = await supabase
-        .from('products')
-        .insert({
-            name: req.body.name,
-            description: req.body.description,
-            price: req.body.price,
-        })
-    if (error) {
-        res.send(error);
-    }
-    res.send("created!!");
-    console.log("retorno " + req.body.name);
-    console.log("retorno " + req.body.description);
-    console.log("retorno " + req.body.price);
-
-});
-
-app.put('/products/:id', async(req, res) => {
-    const { error } = await supabase
-        .from('products')
-        .update({
-            name: req.body.name,
-            description: req.body.description,
-            price: req.body.price
-        })
-        .eq('id', req.params.id)
-    if (error) {
-        res.send(error);
-    }
-    res.send("updated!!");
-});
-
-app.get('/products/:id', async(req, res) => {
-    console.log("id = " + req.params.id);
-    const { data, error } = await supabase
-        .from('products')
-        .select()
-        .eq('id', req.params.id);
-
-    if (error) {
-        console.error("Erro no Supabase:", error);
-        return res.status(500).send(error);
-    }
-
-    res.send(data);
-    console.log("retorno ", data);
-});
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
-    res.send("Hello I am working my friend Supabase <3");
+  res.send('API de produtos — Supabase OK');
 });
 
+app.get('/products', async (req, res) => {
+  const { data, error } = await supabase.from('products').select();
 
-app.get('/*any', (req, res) => {
-    res.send("Hello again I am working my friend to the moon and behind <3");
+  if (error) {
+    console.error('Erro ao listar produtos:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json(data ?? []);
 });
 
+app.get('/products/:id', async (req, res) => {
+  const { data, error } = await supabase
+    .from('products')
+    .select()
+    .eq('id', req.params.id);
 
-app.listen(3000, () => {
-    console.log(`> Ready on http://localhost:3000`);
+  if (error) {
+    console.error('Erro ao buscar produto:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  if (!data || data.length === 0) {
+    return res.status(404).json({ error: 'Produto não encontrado' });
+  }
+
+  res.json(data[0]);
+});
+
+app.post('/products', async (req, res) => {
+  const { name, description, price } = req.body;
+
+  const { data, error } = await supabase
+    .from('products')
+    .insert({
+      name,
+      description: description ?? '',
+      price: Number(price),
+    })
+    .select();
+
+  if (error) {
+    console.error('Erro ao criar produto:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.status(201).json(data[0]);
+});
+
+app.put('/products/:id', async (req, res) => {
+  const { name, description, price } = req.body;
+
+  const { data, error } = await supabase
+    .from('products')
+    .update({
+      name,
+      description: description ?? '',
+      price: Number(price),
+    })
+    .eq('id', req.params.id)
+    .select();
+
+  if (error) {
+    console.error('Erro ao atualizar produto:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  if (!data || data.length === 0) {
+    return res.status(404).json({ error: 'Produto não encontrado' });
+  }
+
+  res.json(data[0]);
+});
+
+app.delete('/products/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error('Erro ao deletar produto:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ message: 'Produto removido com sucesso' });
+});
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`> API rodando em http://localhost:${PORT}`);
+  console.log('> Deixe este terminal aberto. Para parar: Ctrl+C');
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Porta ${PORT} em uso. Altere PORT no .env ou encerre o outro processo.`);
+  } else {
+    console.error(err);
+  }
+  process.exit(1);
 });

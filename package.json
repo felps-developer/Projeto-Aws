@@ -4,6 +4,8 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "start": "node app.js",
+    "dev:front": "npx --yes serve ../supabasefront -l 5500",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -19,9 +21,10 @@
   },
   "homepage": "https://github.com/americosampaio-dev/supabaseBack#readme",
   "dependencies": {
-    "@supabase/supabase-js": "^2.105.4",
+    "@supabase/supabase-js": "^2.107.0",
     "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
-    "morgan": "^1.10.1"
+    "morgan": "^1.11.0"
   }
 }
