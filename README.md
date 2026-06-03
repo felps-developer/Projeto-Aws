@@ -177,69 +177,118 @@ Deve retornar JSON com os produtos (ou `[]` se vazio).
 
 # PARTE 2 — Frontend (VM 2)
 
-## 2.1 Criar segunda instância EC2
+Na VM frontend você usa **somente Git + Nginx** na porta **5000**.
 
-1. **Launch instance** → nome: `frontend-produtos`
-2. Amazon Linux 2023, t2.micro, mesma key `.pem`
-3. Security Group: regras **VM Frontend** (porta **5000**)
-4. Anote **IPv4 público** → `IP_FRONTEND`
+**Não use na EC2:** `npm run dev`, `npx serve`, `node app.js` — isso é só para desenvolvimento no seu PC.
 
-## 2.2 Conectar por SSH
+Arquivos necessários no repositório: `index.html`, `app.js`, `style.css`, `config.js`.
 
-```powershell
-ssh -i "C:\caminho\sua-chave.pem" ec2-user@IP_FRONTEND
-```
+---
 
-## 2.3 No PC — publicar `config.js` no GitHub
+## 2.1 Criar instância e Security Group
 
-Antes do clone na VM, o `config.js` deve apontar para o **backend**:
+1. **EC2 → Launch instance** → nome: `frontend-produtos`
+2. AMI: **Amazon Linux 2023**, tipo **t2.micro**, mesma chave `.pem`
+3. Security Group — regra de entrada:
+
+| Tipo | Porta | Origem |
+|------|-------|--------|
+| SSH | 22 | Seu IP |
+| Custom TCP | **5000** | 0.0.0.0/0 |
+
+4. **Launch** e anote o **IPv4 público** → `IP_FRONTEND`
+
+---
+
+## 2.2 Ajustar `config.js` no GitHub (no seu PC)
+
+O front precisa chamar o **backend**, não `localhost`:
 
 ```javascript
 const API_URL = 'http://IP_BACKEND:3000';
 ```
 
-No PC:
+Substitua `IP_BACKEND` pelo IP público da VM do backend (ex.: `100.55.150.29`).
 
 ```powershell
 cd caminho\supabasefront
 git add config.js
-git commit -m "Aponta API para backend AWS"
+git commit -m "Aponta API para IP do backend na AWS"
 git push origin main
 ```
 
-(Use `master` se for o nome da sua branch.)
+(Se a branch for `master`, use `git push origin master`.)
 
-## 2.4 Na VM — Git + Nginx
+---
+
+## 2.3 Conectar na VM frontend (SSH)
+
+```powershell
+ssh -i "C:\caminho\sua-chave.pem" ec2-user@IP_FRONTEND
+```
+
+---
+
+## 2.4 Instalar Git e Nginx
 
 ```bash
-sudo dnf update -y
-sudo dnf install git nginx policycoreutils-python-utils -y
-sudo semanage port -a -t http_port_t -p tcp 5000 2>/dev/null || true
+sudo yum update -y
+sudo yum install git nginx policycoreutils-python-utils -y
+```
 
-cd ~
+Liberar porta **5000** no SELinux (Amazon Linux):
+
+```bash
+sudo semanage port -a -t http_port_t -p tcp 5000 2>/dev/null || true
+```
+
+---
+
+## 2.5 Clonar o repositório com Git
+
+```bash
+cd /home/ec2-user
 git clone https://github.com/felps-developer/supabasefront.git
 cd supabasefront
+ls
+```
+
+Deve listar: `index.html` `app.js` `style.css` `config.js`
+
+Confira o IP do backend:
+
+```bash
 cat config.js
 ```
 
-Confirme que `API_URL` usa `http://IP_BACKEND:3000` (não `localhost`).
+Tem que aparecer `http://IP_BACKEND:3000`. Se estiver errado:
 
-## 2.5 Publicar arquivos no Nginx
+```bash
+nano config.js
+# corrija, salve (Ctrl+O, Enter, Ctrl+X)
+# depois: git add config.js && git commit -m "fix api url" && git push
+```
+
+---
+
+## 2.6 Copiar arquivos para o Nginx
 
 ```bash
 sudo mkdir -p /var/www/produtos
-sudo cp -r ~/supabasefront/* /var/www/produtos/
+sudo cp -r /home/ec2-user/supabasefront/* /var/www/produtos/
 sudo chown -R nginx:nginx /var/www/produtos
 sudo chmod -R 755 /var/www/produtos
 ```
 
-## 2.6 Configurar Nginx (porta 5000)
+---
+
+## 2.7 Configurar Nginx na porta 5000
 
 ```bash
 sudo nano /etc/nginx/conf.d/produtos.conf
 ```
 
-Cole:
+Cole **apenas** isto:
 
 ```nginx
 server {
@@ -254,7 +303,7 @@ server {
 }
 ```
 
-Aplicar:
+Salvar e ativar:
 
 ```bash
 sudo nginx -t
@@ -262,18 +311,57 @@ sudo systemctl enable nginx
 sudo systemctl restart nginx
 ```
 
-## 2.7 Testar o site
+Conferir se a porta 5000 está ouvindo:
 
-No navegador:
+```bash
+sudo ss -tlnp | grep 5000
+```
+
+---
+
+## 2.8 Testar no navegador (seu PC)
 
 ```text
 http://IP_FRONTEND:5000
 ```
 
-- Busca por nome, botão **Criar produto**, **Editar** e **Excluir** devem funcionar.
-- A API é chamada em `http://IP_BACKEND:3000`.
+**Importante:** use `:5000` na URL.
 
-> **Não** rode `node app.js` na VM frontend — os arquivos são estáticos servidos pelo Nginx.
+| Teste | Esperado |
+|-------|----------|
+| Página abre | Lista, busca e botão **Criar produto** |
+| Listar produtos | Chama `http://IP_BACKEND:3000/products` |
+| Criar / editar / excluir | Funciona se o backend estiver no ar |
+
+Teste direto da API (outra aba):
+
+```text
+http://IP_BACKEND:3000/products
+```
+
+---
+
+## 2.9 Atualizar o site depois (só Git + Nginx)
+
+Quando mudar código no GitHub:
+
+```bash
+cd /home/ec2-user/supabasefront
+git pull
+sudo cp -r /home/ec2-user/supabasefront/* /var/www/produtos/
+sudo systemctl reload nginx
+```
+
+---
+
+## 2.10 O que NÃO fazer na VM frontend
+
+| Não usar na EC2 | Motivo |
+|-----------------|--------|
+| `npm install` / `npm run dev` | Não precisa de Node no front |
+| `node app.js` | `app.js` é código do **navegador** |
+| `npx serve` | Nginx já serve os arquivos |
+| Porta 80 (se o SG só abre 5000) | Site fica em **5000** |
 
 ---
 
@@ -330,32 +418,18 @@ pm2 status
 
 4. Teste: `http://NOVO_IP_BACKEND:3000/products`
 
-5. **Frontend** — se o IP do backend mudou:
+5. **Frontend** — SSH na VM frontend:
 
 ```bash
-cd ~/supabasefront
-nano config.js
-# API_URL = 'http://NOVO_IP_BACKEND:3000'
-sudo cp -r ~/supabasefront/* /var/www/produtos/
-```
-
-6. Nginx:
-
-```bash
+cd /home/ec2-user/supabasefront
+git pull
+# Se o IP do backend mudou, edite config.js no PC, dê push, e git pull de novo
+sudo cp -r /home/ec2-user/supabasefront/* /var/www/produtos/
 sudo systemctl start nginx
 sudo systemctl status nginx
 ```
 
-7. Teste: `http://NOVO_IP_FRONTEND:5000`
-
-### Atualizar frontend via Git (após mudar IP no repo)
-
-```bash
-cd ~/supabasefront
-git pull
-sudo cp -r ~/supabasefront/* /var/www/produtos/
-sudo systemctl reload nginx
-```
+6. Teste: `http://NOVO_IP_FRONTEND:5000`
 
 ---
 
